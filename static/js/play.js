@@ -976,11 +976,13 @@ function parse_description(desc) {
     return parals;
 }
 
-/* Create a plain text DOM node. Yeah, I do this sometimes. jQuery doesn't
-   have a wrapper for this DOM operation. */
+/* Create an HTML DOM node.
+ * The original tworld won't let you have any HTML in your texts.*/
 function create_text_node(val)
 {
-    return document.createTextNode(val);
+    var htmlNode = document.createElement('span');
+    htmlNode.innerHTML = val;
+    return htmlNode;
 }
 
 /* Run a function (no arguments) in timeout seconds. Returns a value that
