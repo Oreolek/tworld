@@ -1,0 +1,109 @@
+# The config file for both tworld and tweb. Also the command-line scripts,
+# twsetup and twloadworld.
+
+# This is a tornado-style config file; Python code is executed as the
+# config file is loaded.
+
+import os.path
+
+# Title of the app. This appears inline in many of the app templates.
+# You can modify the templates to change this, but it's easier to change
+# the name globally with this setting.
+app_title = 'Tworld'
+
+# Banner title of the app. This appears *raw* in the <h1> tag of the
+# base.html template. You may fancy it up with HTML if you like, although
+# you probably won't need to.
+app_banner = app_title
+
+# Public HTTP port. This should be 80 if you're running on a dedicated
+# server. If you need to run Tworld on a machine with a "normal" web
+# server, or if you're doing development as a non-root user, set this
+# to a high unused port like 4000.
+port = 4000
+
+# Public server name. This appears in displayed absolute URLs, for example
+# in password recovery emails.
+hostname = 'example.com'
+
+# If debug is true, tweb and tworld use Tornado's "autoreload" mode; any
+# change to their source code will trigger a restart. Also, Tornado will
+# not cache templates. See: 
+# http://www.tornadoweb.org/en/stable/overview.html#debug-mode-and-automatic-reloading
+debug = True
+
+# The name of the MongoDB database in which all Tworld collections will be
+# stored.
+mongo_database = 'tworld'
+
+# Your email address. This must be a working address; you'll need it to
+# log into the Admin account.
+admin_email = 'you@example.com'
+
+# This is used as an encryption key (or part of it) for session cookies.
+# Stick in a bunch of random characters, and don't allow this config
+# file to become publicly readable. If you do, malicious users will find
+# it and have an easier time faking sign-in cookies.
+cookie_secret = '__FILL_IN_RANDOM_DATA_HERE__'
+
+# The private port used between tweb and tworld. This *must not* be
+# publicly accessible. Anyone who can write to this port can smash your
+# Tworld database.
+tworld_port = 4001
+
+# Various directories used by tworld and tweb.
+base_path = '/usr/local/var/tworld'
+template_path = os.path.join(base_path, 'template')
+static_path = os.path.join(base_path, 'static')
+python_path = os.path.join(base_path, 'lib')
+
+# Configuration for SSL support. This is necessary to accept https and
+# wss (secure HTTP and websocket) connections. If commented out, only
+# regular HTTP will be accepted.
+#ssl_port = 4003
+#ssl_cert_path = os.path.join(base_path, 'ssl.crt')
+#ssl_key_path = os.path.join(base_path, 'ssl.key')
+#ssl_key_password = '__SSL_KEY_PASSPHRASE__'
+
+# Logging threshold level. (Must be upper-case.) See the Python logging
+# module.
+log_level = 'DEBUG'
+
+# File for tweb's log messages. If not set, logs are written to stdout.
+# log_file_tweb = os.path.join(base_path, 'log/tweb.log')
+
+# File for tworld's log messages. If not set, logs are written to stdout.
+# log_file_tworld = os.path.join(base_path, 'log/tworld.log')
+
+# This disables some Tornado logging features that we do not want.
+# (Use the options above instead.)
+logging = 'none'
+
+# Email address used as the sender for automated requests. (Password
+# recovery.)
+email_from = 'tworld@example.com'
+
+# Email sending command. This must accept $TO and $SUBJECT fields on the
+# command line (optionally $FROM as well). The message body must be
+# accepted as stdin.
+# The string is parsed with shlex, so quotes and backslashes work in a
+# roughly shell-like way. Be sure to escape backslashes (\\).
+# The $TO, $FROM, $SUBJECT elements are replaced in processing, not via
+# env variables or the shell. Spell them exactly as shown, in upper-case.
+email_command = 'mail -s $SUBJECT $TO'
+
+# The list of static top-level pages on the web site. Each string here
+# provides a http://HOST/STRING page, which is served as the 
+# "top_STRING.html" template. You may modify the top_about.html template,
+# and add as many more as you want.
+# (This does not allow you to override the front page, or /register,
+# /play, etc.)
+top_pages = [ 'about', 'doc' ]
+
+# Additional static files and directories on the web site. Uncomment these
+# if you need extra top-level URLs (beyond the usual /static directory).
+# top_static_regex should be a list of simple file regexes: 'foo.txt',
+# 'bar/.*', etc. top_static_base_path should be the directory that contains
+# these items.
+#top_static_regex = [ ]
+#top_static_base_path = os.path.join(base_path, 'ostatic')
