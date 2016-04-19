@@ -12,26 +12,12 @@ Exploring
 <script src="{{ static_url('js/jquery.contextMenu.js') }}" type="text/javascript"></script>
 <script src="{{ static_url('js/play.js') }}" type="text/javascript"></script>
 <script type="text/javascript">
-
-/* Preference fields, pulled from the playprefs collection. */
-var db_uiprefs = {% raw uiprefs %};
-
 /* Localization table, pulled from the localize collection. */
 var db_localize = {% raw localize %};
 
 /* Is this page on an https URL? (We need to know this to determine whether
    to run the websocket on an wss URL.) */
 var use_ssl = {% if usessl %} true {% else %} false {% end %};
-
-/* All the base fonts that are available in the font preference menu.
-   The default entry must describe the CSS font-family for #submain. */
-var template_base_fonts = [
-    { label:'Palatino', 'default':true, family:'' },
-    { label:'Helvetica', family:'"Helvetica Neue", "Helvetica", "Arial", sans-serif' },
-    { label:'Times Roman', family:'"Times New Roman", "Times", serif' },
-    { label:'Trebuchet', family:'"Trebuchet MS", "Arial", sans-serif' },
-    { label:'Georgia', family:'"Georgia", "Palatino", serif' }
-];
 
 /* All the text styles that are legal in room descriptions and so on.
    Each is mapped to the CSS class that displays it. */

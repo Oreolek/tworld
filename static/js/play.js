@@ -3,26 +3,6 @@ var websocket = null;
 var connected = false;
 var everconnected = false;
 
-/* Default values for all the UI preferences. These will be overridden by
-   player preferences. */
-var uiprefs = {
-    toolseg_min_prefs: true,
-    leftright_percent: 75,
-    updown_percent: 70,
-    font_family: '', /* default font */
-    font_size: 100,
-    line_height: 135,
-    smooth_scroll: true,
-    notifications: 'none',
-    notifyby: 'star'
-};
-
-/* Maps font-family names (as seen in the font preference menu) to
-   font objects (as seen in the template_base_fonts array in play.html).
-   As a special case, '' maps to the default font.
-   Constructed in collate_uiprefs(). */
-var template_base_font_map = {};
-
 /* When there are more than 200 lines in the event pane, chop it down to
    the last 160. */
 var EVENT_TRIM_LIMIT = 200;
@@ -35,24 +15,6 @@ var KEY_DOWN = 40;
 
 var NBSP = '\u00A0';
 
-/* The db_uiprefs object contains the player preferences. They're written
-   directly into the play.html template by the web server. Copy them
-   over the defaults, where present.
-*/
-function collate_uiprefs() {
-    for (var key in db_uiprefs) {
-        uiprefs[key] = db_uiprefs[key];
-    }
-
-    /* We also take this opportunity to built the template_base_font_map. */
-    for (var ix=0; ix<template_base_fonts.length; ix++) {
-        var font = template_base_fonts[ix];
-        template_base_font_map[font.label] = font;
-        if (font.default)
-            template_base_font_map[''] = font;
-    }
-}
-
 /* Construct the DOM for the page.
 */
 function build_page_structure() {
@@ -62,27 +24,12 @@ function build_page_structure() {
     var topcol = $('<div>', { id: 'topcol' });
     var leftcol = $('<div>', { id: 'leftcol' });
     var localepane = $('<div>', { id: 'localepane' });
-    var rightcol = $('<div>', { id: 'rightcol' });
     var bottomcol = $('<div>', { id: 'bottomcol' });
     var eventpane = $('<div>', { id: 'eventpane' });
     var eventboxpane = $('<div>', { id: 'eventboxpane' });
 
     localepane.append($('<div>', { id: 'localepane_locale' }));
     localepane.append($('<div>', { id: 'localepane_populace' }));
-
-    var tooloutline = $('<div>', { 'class': 'ToolOutline' });
-    var toolheader = $('<div>', { 'class': 'ToolTitleBar' });
-    tooloutline.append(toolheader);
-    toolpane_build_segment('plist', true);
-    tooloutline.append(toolsegments['plist'].segel);
-    toolpane_build_segment('prefs', false);
-    tooloutline.append(toolsegments['prefs'].segel);
-    tooloutline.append($('<div>', { 'class': 'ToolFooter' }));
-
-    toolheader.append($('<h2>', { id: 'tool_title_title', 'class': 'ToolTitle' }));
-    toolheader.append($('<div>', { id: 'tool_title_scope', 'class': 'ToolData' }));
-    toolheader.append($('<h3>', { id: 'tool_title_creator', 'class': 'ToolTitle' }));
-    rightcol.append(tooloutline);
 
     var inputline = $('<div>', { 'class': 'Input' });
     var inputprompt = $('<div>', { 'class': 'InputPrompt' });
@@ -95,7 +42,6 @@ function build_page_structure() {
 
     topcol.append(leftcol);
     leftcol.append(localepane);
-    topcol.append(rightcol);
     bottomcol.append($('<div>', { id: 'bottomcol_topedge' }));
     bottomcol.append(eventboxpane);
     eventboxpane.append(eventpane);
@@ -105,25 +51,6 @@ function build_page_structure() {
        efficient this way. */
     $('#submain').append(topcol);
     $('#submain').append(bottomcol);
-
-    toolpane_set_world(localize('label.in_transition'), NBSP, '...');
-
-    /* Apply the current ui layout preferences. */
-    $('#topcol').css({ height: uiprefs.updown_percent+'%' });
-    $('#bottomcol').css({ height: (100-uiprefs.updown_percent)+'%' });
-    $('#leftcol').css({ width: uiprefs.leftright_percent+'%' });
-    $('#rightcol').css({ width: (100-uiprefs.leftright_percent)+'%' });
-    var font = template_base_font_map[uiprefs.font_family];
-    if (!font || font.default) {
-        $('#submain').css({ 'font-family':'' });
-    }
-    else {
-        $('#submain').css({ 'font-family':font.family });
-    }
-    var val = uiprefs.font_size / 100.0;
-    $('#main').css('font-size', val+'em');
-    val = uiprefs.line_height / 100.0;
-    $('#submain').css('line-height', val+'em');
 }
 
 function build_focuspane(contentls)
@@ -155,138 +82,11 @@ function setup_event_handlers() {
     inputel.on('keypress', evhan_input_keypress);
     inputel.on('keydown', evhan_input_keydown);
     
-    $('#leftcol').resizable( { handles:'e', containment:'parent', 
-          distance: 4,
-          resize:handle_leftright_resize, stop:handle_leftright_doneresize } );
     $('#topcol').resizable( { handles:'s', containment:'parent',
           distance: 4,
           resize:handle_updown_resize, stop:handle_updown_doneresize } );
     
     $('div.ui-resizable-handle').append('<div class="ResizingThumb">');
-
-    /* Browsers might not support this, but we'll try. */
-    $(document).on('visibilitychange', evhan_visibilitychange);
-
-    /* The controls in the prefs pane... */
-
-    var seg = toolsegments['prefs'];
-
-    var font = template_base_font_map[uiprefs.font_family];
-    if (!font)
-        font = template_base_font_map[''];
-    seg.fontfamilyselect.prop('value', font.label);
-    seg.fontfamilyselect.on('change', function(ev) {
-            var seg = toolsegments['prefs'];
-            var val = seg.fontfamilyselect.prop('value');
-            var font = template_base_font_map[val];
-            if (!font || font.default) {
-                $('#submain').css({ 'font-family':'' });
-                val = '';
-            }
-            else {
-                $('#submain').css({ 'font-family':font.family });
-            }
-            uiprefs.font_family = val;
-            note_uipref_changed('font_family');
-        });
-
-    seg.fontsizeslider.slider({
-            value: uiprefs.font_size, min: 80, max: 120, step: 5,
-            stop: function(ev, ui) {
-                var val = ui.value / 100.0;
-                $('#main').css('font-size', val+'em');
-                uiprefs.font_size = Math.round(ui.value);
-                note_uipref_changed('font_size');
-            }
-        });
-
-    seg.lineheightslider.slider({
-            value: uiprefs.line_height, min: 120, max: 150, step: 5,
-            stop: function(ev, ui) {
-                var val = ui.value / 100.0;
-                $('#submain').css('line-height', val+'em');
-                uiprefs.line_height = Math.round(ui.value);
-                note_uipref_changed('line_height');
-            }
-        });
-
-    seg.smoothscrollbox.prop('checked', uiprefs.smooth_scroll);
-    seg.smoothscrollbox.on('change', function(ev) {
-            var seg = toolsegments['prefs'];
-            if (seg.smoothscrollbox.prop('checked'))
-                uiprefs.smooth_scroll = true;
-            else
-                uiprefs.smooth_scroll = false;
-            note_uipref_changed('smooth_scroll');
-        });
-
-    if (!uiprefs.notifications || uiprefs.notifications == 'none') {
-        seg.notificationselect.prop('value', 'none');
-        seg.notifybyentry.hide();
-    }
-    else {
-        seg.notificationselect.prop('value', uiprefs.notifications);
-    }
-    seg.notificationselect.on('change', function(ev) {
-            var seg = toolsegments['prefs'];
-            var val = seg.notificationselect.prop('value');
-            uiprefs.notifications = val;
-            note_uipref_changed('notifications');
-            if (!val || val == 'none') {
-                notify_clear();
-                seg.notifybyentry.slideUp(200);
-            }
-            else {
-                seg.notifybyentry.slideDown(200);
-            }
-        });
-
-    if (!uiprefs.notifyby) {
-        uiprefs.notifyby = 'star';
-    }
-    if (uiprefs.notifyby == 'popup') {
-        /* If OS notifications are not available or not (yet) permitted,
-           silently switch off this preference. The player will get feedback
-           when they turn it on. */
-        if (!window.Notification || !window.Notification.permission 
-            || window.Notification.permission != 'granted')
-            uiprefs.notifyby = 'star';
-    }
-    seg.notifybyselect.prop('value', uiprefs.notifyby);
-    seg.notifybyselect.on('change', function(ev) {
-            var seg = toolsegments['prefs'];
-            var val = seg.notifybyselect.prop('value');
-            if (val != 'popup') {
-                uiprefs.notifyby = val;
-                note_uipref_changed('notifyby');
-            }
-            else {
-                /* Must request permission for popups. This call is
-                   idempotent, so we do it every time the preference
-                   is set. 
-                   Note that the callback is not guaranteed on Firefox
-                   (?!) so we reset the menu now, and re-reset it in
-                   the callback.
-                */
-                uiprefs.notifyby = 'star';
-                seg.notifybyselect.prop('value', 'star');
-                var callback = function() {
-                    if (!window.Notification || !window.Notification.permission 
-                        || window.Notification.permission != 'granted') {
-                        eventpane_add('This service does not have permission to display popups.', 'EventError');
-                    }
-                    else {
-                        uiprefs.notifyby = 'popup';
-                        seg.notifybyselect.prop('value', 'popup');
-                        note_uipref_changed('notifyby');
-                    }
-                };
-                if (!window.Notification || !window.Notification.requestPermission)
-                    callback();
-                else
-                    window.Notification.requestPermission(callback);
-            }
-        });
 }
 
 function open_websocket() {
@@ -318,561 +118,10 @@ function display_error(msg) {
     focuspane_clear();
 }
 
-function toolpane_set_world(world, scope, creator) {
-    $('#tool_title_title').text(world);
-    $('#tool_title_scope').text(scope);
-    $('#tool_title_creator').text(creator);
-}
-
 /* Contains a map of all segments currently in the tool column.
    (Minimized ones count. The header bar doesn't count.)
 */
 var toolsegments = {};
-
-/* Create a segment, but do not add it to the document. The caller must
-   do that, either directly or by calling toolpane_add_segment().
-*/
-function toolpane_build_segment(key, hasmenu) {
-    if (toolsegments[key]) {
-        console.log('Tool column already has segment: ' + key);
-        return;
-    }
-
-    var seg = { key:key };
-    toolsegments[key] = seg;
-
-    var isclosed = uiprefs['toolseg_min_'+key];
-
-    /* Build the DOM elements. */
-    var segel = $('<div>', {'class':'ToolSegment'});
-    var leftbutel = $('<div>', {'class':'ToolControl ToolControlLeft',
-                                'title':'Open/close this section'});
-    if (isclosed)
-        leftbutel.text('\u25B8'); /* right pointer */
-    else
-        leftbutel.text('\u25BE'); /* down pointer */
-    segel.append(leftbutel);
-    var rightbutel =  $('<div>', {'class':'ToolControl ToolControlRight',
-                                  'title':'Menu for this section'});
-    rightbutel.text('\u25C6'); /* diamond */
-    if (!hasmenu)
-        rightbutel.addClass('ToolControlDimmed');
-    segel.append(rightbutel);
-    var titleel = $('<h3>', {'class':'ToolTitle'});
-    titleel.text('-');
-    segel.append(titleel);
-    var bodyel = $('<div>');
-    if (isclosed)
-        bodyel.css({'display':'none'});
-    segel.append(bodyel);
-
-    seg.segel = segel;
-    seg.titleel = titleel;
-    seg.bodyel = bodyel;
-    seg.leftbutel = leftbutel;
-    seg.rightbutel = rightbutel;
-
-    if (key == 'prefs')
-        toolpane_fill_pane_prefs(seg);
-    else if (key == 'plist')
-        toolpane_fill_pane_plist(seg);
-    else if (key == 'portal')
-        toolpane_fill_pane_portal(seg);
-    else if (key == 'insttool')
-        toolpane_fill_pane_insttool(seg);
-    else if (key == 'eventlog')
-        toolpane_fill_pane_eventlog(seg);
-    else
-        console.log('Unrecognized toolpane segment: ' + key);
-
-    leftbutel.on('click', {key:key}, toolpane_toggle_min);
-
-    return seg;
-}
-
-/* Add a segment (created by toolpane_build_segment) to the toolpane.
-   If aftersegkey is given, the new segment appears below that one
-   (or above it if aboveflag is true). If aftersegkey is omitted or
-   not found, the new segment appears at the bottom.
- */
-function toolpane_add_segment(key, aftersegkey, aboveflag) {
-    var seg = toolsegments[key];
-    var afterseg = toolsegments[aftersegkey];
-
-    if (!seg)
-        return;
-
-    seg.segel.css({display:'none'});
-    seg.leftbutel.css({display:'none'});
-    seg.rightbutel.css({display:'none'});
-
-    if (afterseg) {
-        if (!aboveflag)
-            afterseg.segel.after(seg.segel);
-        else
-            afterseg.segel.before(seg.segel);
-    }
-    else {
-        $('#rightcol .ToolFooter').before(seg.segel);
-    }
-
-    seg.segel.slideDown(200, function() {
-            /* Necessary because the absolute buttons don't get clipped by the
-               segment height. */
-            seg.leftbutel.css({display:''});
-            seg.rightbutel.css({display:''});            
-        });
-}
-
-function toolpane_remove_segment(key) {
-    var seg = toolsegments[key];
-
-    if (!seg)
-        return;
-
-    var segel = seg.segel;
-    segel.slideUp(200, function() { segel.remove(); });
-
-    /* Necessary because the absolute buttons don't get clipped by the
-       segment height. */
-    seg.leftbutel.css({display:'none'});
-    seg.rightbutel.css({display:'none'});
-
-    toolsegments[key] = null;
-}
-
-function toolpane_toggle_min(ev) {
-    ev.preventDefault();
-    /*### end_editing(); */
-
-    var key = ev.data.key;
-    var prefkey = 'toolseg_min_'+key;
-    var seg = toolsegments[key];
-
-    if (uiprefs[prefkey]) {
-        /* Open up */
-        if (seg.openhook)
-            seg.openhook(seg);
-        uiprefs[prefkey] = false;
-        seg.bodyel.slideDown(200);
-        seg.leftbutel.text('\u25BE'); /* down pointer */
-    }
-    else {
-        /* Minimize */
-        uiprefs[prefkey] = true;
-        seg.bodyel.slideUp(200);
-        seg.leftbutel.text('\u25B8'); /* right pointer */
-    }
-    note_uipref_changed(prefkey);
-}
-
-
-function toolpane_fill_pane_prefs(seg) {
-    seg.titleel.text(localize('client.tool.title.preferences'));
-
-    var listel = $('<ul>', {'class':'ToolList ToolListSpaced'});
-    seg.bodyel.append(listel);
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<label>').text('Text Font'));
-    el.append($('<br>'));
-    var selectel = $('<select>', { 'class':'FocusSelect' });
-    el.append(selectel);
-    for (var ix=0; ix<template_base_fonts.length; ix++) {
-        var font = template_base_fonts[ix];
-        var optel = $('<option>', {value:font.label}).text(font.label);
-        selectel.append(optel);
-    }
-    seg.fontfamilyselect = selectel;
-
-    var el = $('<li>').text('Text Size');
-    listel.append(el);
-    el.append($('<br>'));
-    var fontsizeslider = $('<div>');
-    el.append(fontsizeslider);
-    seg.fontsizeslider = fontsizeslider;
-
-    el = $('<li>').text('Line Spacing');
-    listel.append(el);
-    el.append($('<br>'));
-    var lineheightslider = $('<div>');
-    el.append(lineheightslider);
-    seg.lineheightslider = lineheightslider;
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<label>').text('Smooth Scrolling'));
-    var smoothscrollbox = $('<input>', {'class':'CheckboxRight', 'type':'checkbox'});
-    el.append(smoothscrollbox);
-    seg.smoothscrollbox = smoothscrollbox;
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<label>').text('Notifications'));
-    el.append($('<br>'));
-    var selectel = $('<select>', { 'class':'FocusSelect' });
-    el.append(selectel);
-    if (true) {
-        selectel.append($('<option>', {value:'none'}).text('None'));
-        selectel.append($('<option>', {value:'whenidle'}).text('When Idle'));
-        selectel.append($('<option>', {value:'whenhidden'}).text('When Hidden'));
-    }
-    seg.notificationselect = selectel;
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<label>').text('Notify By'));
-    el.append($('<br>'));
-    var selectel = $('<select>', { 'class':'FocusSelect' });
-    el.append(selectel);
-    if (true) {
-        selectel.append($('<option>', {value:'star'}).text('Window Title'));
-        selectel.append($('<option>', {value:'popup'}).text('Popup Note'));
-    }
-    seg.notifybyselect = selectel;
-    seg.notifybyentry = el;
-
-}
-
-function toolpane_fill_pane_plist(seg) {
-    seg.titleel.text(localize('client.tool.title.portals'));
-
-    var listel = $('<ul>', {'class':'ToolList'});
-    seg.listel = listel;
-    seg.bodyel.append(listel);
-
-    seg.map = {}; /* maps portid to portal object */
-    seg.list = []; /* portals in listpos order */
-    seg.selection = null;
-
-    toolpane_plist_update();
-
-    /* Clear selection when opening the segment. */
-    seg.openhook = function(seg) { toolpane_plist_select(null); };
-
-    /* Click on the segment title to clear selection. */
-    seg.titleel.on('click', seg.openhook);
-
-    seg.rightbutel.contextMenu('popup_menu', 
-        [
-            { text:localize('client.tool.menu.return_to_start'),
-                    click: function() {
-                    websocket_send_json({ cmd:'portstart' });
-                } },
-            { text:localize('client.tool.menu.delete_own_portal'),
-                    enableHook: function() { return toolsegments['plist'].selection; },
-                    click: function() {
-                    var seg = toolsegments['plist'];
-                    var portal = seg.map[seg.selection];
-                    if (portal) {
-                        websocket_send_json({ cmd:'deleteownportal', portid:portal.portid });
-                    }
-                } },
-            { text:localize('client.tool.menu.set_panic_portal'),
-                    enableHook: function() { return toolsegments['plist'].selection; },
-                    click: function() {
-                    var seg = toolsegments['plist'];
-                    var portal = seg.map[seg.selection];
-                    if (portal) {
-                        websocket_send_json({ cmd:'setpreferredportal', portid:portal.portid });
-                    }
-                } }
-         ],
-        { 
-            leftClick: true,
-            position: { my:'right top', at:'right bottom', of:seg.rightbutel }
-        } );
-
-}
-
-/* Rebuild the contents of the plist tool segment. The seg.list and seg.map
-   have already been filled in. 
-*/
-function toolpane_plist_update() {
-    var seg = toolsegments['plist'];
-    var el;
-
-    seg.listel.empty();
-
-    if (!seg.list.length) {
-        el = $('<li>', {'class':'ToolListDimmed'}).text('(empty)');
-        seg.listel.append(el);
-        seg.selection = null;
-        return;
-    }
-
-    for (var ix=0; ix<seg.list.length; ix++) {
-        var portal = seg.list[ix];
-
-        el = $('<li>', {'class':'ToolListButtonish'});
-        el.append($('<span>').text(portal.world));
-        el.append(' \u2013 '); /* en-dash */
-        el.append($('<span>').text(portal.location));
-        el.append(' ');
-        el.append($('<span>', {'class':'ToolGloss'}).text('('+portal.scope+')'));
-
-        /* Click on entry to select. */
-        el.on('click', {portid:portal.portid}, function(ev) {
-                ev.preventDefault();
-                toolpane_plist_select(ev.data.portid, true);
-            } );
-
-        portal.el = el;
-        el.data('portid', portal.portid);
-        seg.listel.append(el);
-    }
-
-    if (seg.selection) {
-        var portal = seg.map[seg.selection];
-        if (portal) {
-            portal.el.addClass('ToolListSelected');
-        }
-    }
-    else {
-        seg.selection = null;
-    }
-}
-
-function toolpane_plist_select(portid, useasfocus) {
-    var seg = toolsegments['plist'];
-    
-    var portal = seg.map[seg.selection];
-    if (portal) {
-        portal.el.removeClass('ToolListSelected');
-    }
-    seg.selection = portid;
-    portal = seg.map[seg.selection];
-    if (!portal) {
-        seg.selection = null;
-        if (focuspane_current_special_plist_editable()) {
-            plistedit_update_portal_selection();
-        }
-        return;
-    }
-
-    portal.el.addClass('ToolListSelected');
-
-    if (focuspane_current_special_plist_editable()) {
-        var editel = $('.FocusPane .FocusPlistEdit');
-        if (editel.data('visible')) {
-            plistedit_update_portal_selection();
-            return;
-        }
-    }
-
-    if (useasfocus) {
-        websocket_send_json({ cmd:'plistselect', portid:portid });
-    }
-}
-
-/* This is called every time the focus changes. It posts, removes, or updates
-   the "details on this portal" tool segment.
-*/
-function toolpane_portal_addremove() {
-    var portal = focuspane_current_special_portal();
-    if (!portal) {
-        /* Remove if necessary. */
-        if (toolsegments['portal'])
-            toolpane_remove_segment('portal');
-        return;
-    }
-
-    var seg = toolsegments['portal'];
-    if (!seg) {
-        /* Make sure it appears open -- but don't bother notifying the
-           server. */
-        uiprefs['toolseg_min_portal'] = false;
-        seg = toolpane_build_segment('portal', false);
-        toolpane_add_segment('portal', 'plist');
-    }
-    else {
-        toolpane_portal_update();
-    }
-}
-
-function toolpane_fill_pane_portal(seg) {
-    seg.titleel.text(localize('client.tool.title.this_portal'));
-
-    var listel = $('<ul>', {'class':'ToolList'});
-    seg.bodyel.append(listel);
-
-    var el = $('<li>');
-    listel.append(el);
-    el.append($('<div>', {'class':'ToolLabelRight'}).text(localize('misc.world')));
-    var worldel = $('<span>').text('-');
-    el.append(worldel);
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<div>', {'class':'ToolLabelRight'}).text(localize('misc.location')));
-    var locel = $('<span>').text('-');
-    el.append(locel);
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<div>', {'class':'ToolLabelRight'}).text(localize('misc.instance')));
-    var scopeel = $('<span>').text('-');
-    el.append(scopeel);
-
-    el = $('<li>');
-    listel.append(el);
-    el.append($('<div>', {'class':'ToolLabelRight'}).text(localize('misc.creator')));
-    var creatorel = $('<span>').text('-');
-    el.append(creatorel);
-
-    listel = $('<ul>', {'class':'ToolList'});
-    seg.bodyel.append(listel);
-
-    var noflexel = $('<li>', {'class':'StyleEmph'});
-    listel.append(noflexel);
-    var flexel =  $('<li>', {'class':'StyleEmph'}).text(localize('client.label.flexible'));
-    flexel.append(' ');
-    var flexselectel = $('<select>', {'class':'FocusSelect'});
-    flexel.append(flexselectel);
-    listel.append(flexel);
-
-    var copyel = $('<li>');
-    el = $('<a>', {href:'#'}).text(localize('client.label.copy_portal'));
-    copyel.append(el);
-    listel.append(copyel);
-    var nocopyel = $('<li>', {'class':'StyleEmph'}).text(localize('client.label.not_copyable'));
-    listel.append(nocopyel);
-
-    copyel.on('click', function(ev) {
-            ev.preventDefault();
-            var portal = focuspane_current_special_portal();
-            if (portal) {
-                var msg = { cmd:'action', action:portal.copyable };
-                if (portal.instancing == 'standard' && toolsegments['portal']) {
-                    var scid = toolsegments['portal'].flexselectel.prop('value');
-                    if (scid && scid != portal.scid) 
-                        msg.scid = scid;
-                }
-                websocket_send_json(msg);
-            }
-        });
-
-    seg.worldel = worldel;
-    seg.scopeel = scopeel;
-    seg.locel = locel;
-    seg.creatorel = creatorel;
-    seg.copyel = copyel;
-    seg.nocopyel = nocopyel;
-    seg.flexel = flexel;
-    seg.noflexel = noflexel;
-    seg.flexselectel = flexselectel;
-
-    toolpane_portal_update();
-}
-
-function toolpane_portal_update() {
-    var seg = toolsegments['portal'];
-
-    var portal = focuspane_current_special_portal();
-    if (!portal) {
-        seg.worldel.text('-');
-        seg.scopeel.text('-');
-        seg.locel.text('-');
-        seg.creatorel.text('-');
-        return;
-    }
-
-    seg.worldel.text(portal.world);
-    seg.scopeel.text(portal.scope);
-    seg.locel.text(portal.location);
-    seg.creatorel.text(portal.creator);
-    if (portal.copyable) {
-        seg.copyel.show();
-        seg.nocopyel.hide();
-    }
-    else {
-        seg.nocopyel.show();
-        seg.copyel.hide();
-    }
-
-    seg.flexselectel.empty();
-    if (portal.instancing == 'standard') {
-        if (availscopemap[portal.scid] === undefined) {
-            var optel = $('<option>', { value:portal.scid }).text('*Original');
-            seg.flexselectel.append(optel);
-        }
-        for (var ix=0; ix<availscopelist.length; ix++) {
-            scope = availscopelist[ix];
-            var optel = $('<option>', { value:scope.id }).text(scope.name);
-            if (scope.id == portal.scid)
-                optel.prepend('*');
-            seg.flexselectel.append(optel);
-        }
-        seg.flexselectel.prop('value', portal.scid);
-        seg.flexel.show();
-        seg.noflexel.hide();
-    }
-    else {
-        if (portal.instancing == 'solo')
-            seg.noflexel.text(localize('client.label.only_solo'));
-        else
-            seg.noflexel.text(localize('client.label.only_shared'));
-        seg.noflexel.show();
-        seg.flexel.hide();
-    }
-}
-
-/* This is called every time the insttool desc changes. It posts, removes, or
-   updates the "tool for this instance" tool segment.
-*/
-function toolpane_insttool_set(desc) {
-    if (!desc || !desc.length) {
-        /* Remove if necessary. */
-        if (toolsegments['insttool'])
-            toolpane_remove_segment('insttool');
-        return;
-    }
-
-    var seg = toolsegments['insttool'];
-    if (!seg) {
-        /* Make sure it appears open -- but don't bother notifying the
-           server. */
-        uiprefs['toolseg_min_insttool'] = false;
-        seg = toolpane_build_segment('insttool', false);
-        toolpane_add_segment('insttool', 'prefs', true);
-
-        /* Scroll the segment to the top of the right column. As usual,
-           the math here is experimentally deduced, a.k.a. "crap". */
-        var pos = seg.segel.position().top - $('#rightcol .ToolOutline').position().top;
-        if (!uiprefs.smooth_scroll)
-            $('#rightcol').scrollTop(pos);
-        else
-            $('#rightcol').stop().animate({ 'scrollTop': pos }, 200);
-    }
-    else {
-        seg.bodyel.empty();
-    }
-    toolpane_insttool_update(desc);
-}
-
-function toolpane_fill_pane_insttool(seg) {
-    seg.titleel.text(localize('client.tool.title.insttool'));
-}
-
-function toolpane_insttool_update(desc) {
-    var seg = toolsegments['insttool'];
-
-    var contentls;
-    try {
-        contentls = parse_description(desc);
-    }
-    catch (ex) {
-        var el = $('<p>');
-        el.text('[Error rendering description: ' + ex + ']');
-        contentls = [ el ];
-    }
-    var baseel = $('<div>', { 'class':'ToolText' });
-    for (var ix=0; ix<contentls.length; ix++) {
-        baseel.append(contentls[ix]);
-    }
-    seg.bodyel.append(baseel);
-}
 
 function localepane_set_locale(desc, title) {
     var localeel = $('#localepane_locale');
@@ -940,21 +189,6 @@ function eventpane_add(msg, extraclass) {
     el.prepend(dateel);
     $('.Input').before(el);
 
-    if (eventlogging) {
-        var seg = toolsegments['eventlog'];
-        if (!seg) {
-            /* Make sure it appears closed -- but don't bother notifying the
-               server. */
-            uiprefs['toolseg_min_eventlog'] = true;
-            seg = toolpane_build_segment('eventlog', true);
-            toolpane_add_segment('eventlog');
-        }
-        /* cls is already set */
-        var el = $('<div>', { 'class':cls} );
-        el.text(msg);
-        seg.bodyel.append(el);
-    }
-
     /* If there are too many lines in the event pane, chop out the early
        ones. That's easy. Keeping the apparent scroll position the same --
        that's harder. */
@@ -979,55 +213,8 @@ function eventpane_add(msg, extraclass) {
        bottom. */
     if (atbottom) {
         var newscrolltop = frameel.get(0).scrollHeight - frameel.outerHeight() + 2;
-        if (!uiprefs.smooth_scroll)
-            frameel.scrollTop(newscrolltop);
-        else
-            frameel.stop().animate({ 'scrollTop': newscrolltop }, 200);
+        frameel.stop().animate({ 'scrollTop': newscrolltop }, 200);
     }
-}
-
-function toolpane_fill_pane_eventlog(seg)
-{
-    seg.titleel.text(localize('client.tool.title.eventlog'));
-    seg.bodyel.addClass('LimitHeight');
-
-    seg.rightbutel.contextMenu('popup_menu', 
-        [
-            { text:localize('client.tool.menu.enable_log'),
-                    enableHook: function() {
-                    return { checked:eventlogging };
-                },
-                    click: function() {
-                    eventlogging = !eventlogging;
-                    /*### report logging on/off */
-                } },
-            { text:localize('client.tool.menu.select_log'),
-                    enableHook: function() { return !uiprefs['toolseg_min_eventlog']; },
-                    click: function() {
-                    /* Hack to select a range of text; thank you StackOverflow */
-                    if (document.body.createTextRange) {
-                        var range = document.body.createTextRange();
-                        range.moveToElementText(seg.bodyel.get(0));
-                        range.select();
-                    } 
-                    else if (window.getSelection) {
-                        var selection = window.getSelection();        
-                        var range = document.createRange();
-                        range.selectNodeContents(seg.bodyel.get(0));
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                    }
-                } },
-            { text:localize('client.tool.menu.clear_log'),
-                    click: function() {
-                    /* Remove all after the first. */
-                    seg.bodyel.children('div:gt(0)').remove();
-                } }
-         ],
-        { 
-            leftClick: true,
-            position: { my:'right top', at:'right bottom', of:seg.rightbutel }
-        } );
 }
 
 function focuspane_clear()
@@ -1517,11 +704,6 @@ function cmd_update(obj) {
         console.log('### update summary:' + upsum);
     }
 
-    if (obj.world !== undefined) {
-        toolpane_set_world(obj.world.world, obj.world.scope, obj.world.creator);
-        /* Changing worlds is a good time to deselect the plist entry. */
-        toolpane_plist_select(null);
-    }
     if (obj.locale !== undefined) {
         localepane_set_locale(obj.locale.desc, obj.locale.name);
     }
@@ -1537,44 +719,9 @@ function cmd_update(obj) {
             focuspane_set_special(obj.focus);
         else
             focuspane_set(obj.focus);
-        toolpane_portal_addremove();
-    }
-    if (obj.insttool !== undefined) {
-        toolpane_insttool_set(obj.insttool);
     }
 
     /* Could call notify here, but I think event-pane messages are sufficient. */
-}
-
-function cmd_updateplist(obj) {
-    var seg = toolsegments['plist'];
-
-    /* This could have a special case for adding one new portal to the end of
-       the list. If we wanted keen animation, that is. */
-
-    if (obj.clear) {
-        seg.map = {};
-    }
-
-    if (obj.map) {
-        jQuery.each(obj.map, function(portid, portal) {
-                if (portal === false) {
-                    delete seg.map[portid];
-                }
-                else {
-                    seg.map[portid] = portal;
-                }
-            });
-    }
-
-    /* Rebuild the list, regardless. */
-    seg.list.length = 0;
-    jQuery.each(seg.map, function(portid, portal) {
-            seg.list.push(portal);
-        });
-    seg.list.sort(function(p1, p2) { return p1.listpos - p2.listpos; });
-
-    toolpane_plist_update();
 }
 
 var availscopemap = {};
@@ -1618,11 +765,6 @@ function cmd_updatescopes(obj) {
                 return 1;
             return 0;
         });
-
-    /* Adjust the open tool pane, if necessary. */
-    if (toolsegments['portal']) {
-        toolpane_portal_update();
-    }
 }
 
 function cmd_clearfocus(obj) {
@@ -1630,7 +772,6 @@ function cmd_clearfocus(obj) {
     focuspane_special_val = [];
     focuspane_special_editplist = null;
     focuspane_clear();
-    toolpane_portal_addremove();
 }
 
 function cmd_message(obj) {
@@ -1658,7 +799,6 @@ function cmd_extendcookie(obj) {
 var command_table = {
     event: cmd_event,
     update: cmd_update,
-    updateplist: cmd_updateplist,
     updatescopes: cmd_updatescopes,
     clearfocus: cmd_clearfocus,
     message: cmd_message,
@@ -1902,36 +1042,6 @@ function submit_line_input(val) {
     }
 }
 
-var changed_uiprefs = {};
-var uipref_changed_timer = null;
-
-function note_uipref_changed(key)
-{
-    changed_uiprefs[key] = true;
-
-    /* A bit of hysteresis; we don't send uiprefs until they've been
-       stable for five seconds. */
-    if (uipref_changed_timer)
-        cancel_delayed_func(uipref_changed_timer);
-    uipref_changed_timer = delay_func(2, send_uipref_changed);
-}
-
-function send_uipref_changed()
-{
-    if (!connected) {
-        /* Leave changed_uiprefs full of keys. Maybe we can send it later. */
-        return;
-    }
-
-    var obj = {};
-    for (var key in changed_uiprefs) {
-        obj[key] = uiprefs[key];
-    }
-
-    websocket_send_json({ cmd:'uiprefs', map:obj });
-    changed_uiprefs = {};
-}
-
 /* Code to deal with notifications. */
 
 var last_activity = new Date();
@@ -1944,28 +1054,14 @@ var notify_current_notif = null;
 function notify(typ, text) {
     var donote = false;
 
-    if (uiprefs.notifications == 'whenidle') {
-        /* Mark event if we've been idle for 30 seconds. */
-        donote = (new Date() - last_activity > 30000);
-    }
-    else if (uiprefs.notifications == 'whenhidden') {
-        /* Mark event if we're hidden. */
-        donote = (document.hidden);
-    }
+    /* Mark event if we've been idle for 30 seconds. */
+    donote = (new Date() - last_activity > 30000);
 
     if (donote) {
-        if (uiprefs.notifyby == 'star') {
-            if (!notify_title_bar_marked) {
-                document.title = '*' + notify_orig_title;
-                notify_title_bar_marked = true;
-            }
-        }
-        else if (uiprefs.notifyby == 'popup') {
-            var opt = { tag:'tag' };
-            if (text)
-                opt.body = text;
-            notify_current_notif = new window.Notification('Seltani activity', opt);
-        }
+        var opt = { tag:'tag' };
+        if (text)
+            opt.body = text;
+        notify_current_notif = new window.Notification('Seltani activity', opt);
     }
 }
 
@@ -1981,17 +1077,6 @@ function notify_clear() {
     if (notify_current_notif !== null) {
         notify_current_notif.close();
         notify_current_notif = null;
-    }
-}
-
-/* Note that the player is not idle. 
-*/
-function notify_deidle() {
-    last_activity = new Date();
-
-    /* If notifications are "when idle", clear them. */
-    if (uiprefs.notifications == 'whenidle') {
-        notify_clear();
     }
 }
 
@@ -2028,10 +1113,7 @@ function evhan_doc_keypress(ev) {
     var bottomdiff = (frameel.get(0).scrollHeight - (frameel.scrollTop() + frameel.outerHeight()));
     if (bottomdiff > 0) {
         var newscrolltop = frameel.get(0).scrollHeight - frameel.outerHeight() + 2;
-        if (!uiprefs.smooth_scroll)
-            frameel.scrollTop(newscrolltop);
-        else
-            frameel.stop().animate({ 'scrollTop': newscrolltop }, 200);
+        frameel.stop().animate({ 'scrollTop': newscrolltop }, 200);
     }
     
     var tagname = ev.target.tagName.toUpperCase();   
@@ -2129,23 +1211,6 @@ function evhan_input_keypress(ev) {
     return true;
 }
 
-/* Event handler: the window has been hidden or revealed. (This should
-   include switching tabs, minimizing the window, and hiding the browser
-   app. Maybe even switching virtual desktops.) 
-
-   (But it's not guaranteed to work. This is a recent browser feature.)
-*/
-function evhan_visibilitychange(ev) {
-    var newflag = document.hidden;
-
-    if (!newflag) {
-        /* We're revealed. If notifications are "when hidden", clear them. */
-        if (uiprefs.notifications == 'whenhidden') {
-            notify_clear();
-        }
-    }
-}
-
 function evhan_click_action(ev) {
     ev.preventDefault();
 
@@ -2157,26 +1222,6 @@ function evhan_click_dropfocus(ev) {
     ev.preventDefault();
 
     websocket_send_json({ cmd:'dropfocus' });
-}
-
-function handle_leftright_resize(ev, ui) {
-    var parentwidth = $('#submain').width();
-    $('#rightcol').css({ width: parentwidth - ui.size.width });
-}
-
-function handle_leftright_doneresize(ev, ui) {
-    var parentwidth = $('#submain').width();
-    var percent = 100.0 * ui.size.width / parentwidth;
-    if (percent < 25)
-        percent = 25;
-    if (percent > 85)
-        percent = 85;
-    var otherpercent = 100.0 - percent;
-    $('#leftcol').css({ width: percent+'%' });
-    $('#rightcol').css({ width: otherpercent+'%' });
-
-    uiprefs.leftright_percent = Math.round(percent);
-    note_uipref_changed('leftright_percent');
 }
 
 function handle_updown_resize(ev, ui) {
@@ -2194,9 +1239,6 @@ function handle_updown_doneresize(ev, ui) {
     var otherpercent = 100.0 - percent;
     $('#topcol').css({ height: percent+'%' });
     $('#bottomcol').css({ height: otherpercent+'%' });
-    
-    uiprefs.updown_percent = Math.round(percent);
-    note_uipref_changed('updown_percent');
 }
 
 
@@ -2263,7 +1305,7 @@ function websocket_send_json(obj) {
 
     /* Consider this "activity", for the purpose of when-idle notifications.
        (Perhaps this is the wrong place to do this?) */
-    notify_deidle();
+    notify_clear();
 }
 
 /* Return the localization of a string, as defined in the db_localize table.
@@ -2315,7 +1357,6 @@ function current_time_string() {
 
 /* The page-ready handler. Like onload(), but better, I'm told. */
 $(document).ready(function() {
-    collate_uiprefs();
     build_page_structure();
     setup_event_handlers();
     open_websocket();
