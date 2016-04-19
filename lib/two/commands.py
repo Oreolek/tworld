@@ -382,8 +382,6 @@ def define_commands():
         app.log.info('cleanupguest: finishing up guest %s', player['name'])
         yield motor.Op(app.mongodb.iplayerprop.remove,
                        {'uid':player['_id']})
-        yield motor.Op(app.mongodb.playprefs.remove,
-                       {'uid':player['_id']})
         yield motor.Op(app.mongodb.portals.remove,
                        {'plistid': player['plistid']})
         # The player's starting portal will be created in create_session_guest.
@@ -788,19 +786,6 @@ def define_commands():
                                    lambda:{
                 '_from':None,
                 '_to':two.execute.LocationProxy(newlocid)})
-        
-    @command('uiprefs')
-    def cmd_uiprefs(app, task, cmd, conn):
-        # Could we handle this in tweb? I guess, if we cared.
-        # Note that this command isn't marked writable, because it only
-        # writes to an obscure collection that never affects anybody's
-        # display.
-        for (key, val) in cmd.map.__dict__.items():
-            res = yield motor.Op(app.mongodb.playprefs.update,
-                                 {'uid':conn.uid, 'key':key},
-                                 {'uid':conn.uid, 'key':key, 'val':val},
-                                 upsert=True)
-
     @command('meta')
     def cmd_meta(app, task, cmd, conn):
         ls = cmd.text.split()
