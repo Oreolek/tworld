@@ -980,9 +980,7 @@ function parse_description(desc) {
  * The original tworld won't let you have any HTML in your texts.*/
 function create_text_node(val)
 {
-    var htmlNode = document.createElement('span');
-    htmlNode.innerHTML = val;
-    return htmlNode;
+    return val;
 }
 
 /* Run a function (no arguments) in timeout seconds. Returns a value that
