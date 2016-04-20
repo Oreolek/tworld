@@ -103,16 +103,6 @@
   z-index: -1;
 }
 
-#rightcol a {
-  text-decoration: none;
-  color: #A30; /* inherit? */
-}
-
-#rightcol a:hover {
-  text-decoration: underline;
-  color: #A30;
-}
-
 .StyleEmph {
   font-style: italic;
 }
@@ -149,7 +139,6 @@
 }
 
 #eventpane a:hover {
-  text-decoration: underline;
   color: #A30;
 }
 
@@ -185,10 +174,6 @@
   font-family: "Gill Sans", Futura, Helvetica, Arial, sans-serif;
   font-size: 1em;
   font-weight: bold;
-}
-
-#rightcol .Event {
-  font-size: 0.8em;
 }
 
 .Event .TimeStamp {
@@ -344,4 +329,9 @@
   padding: 2px 0px;
   width: 1.2em;
   height: 1.0em;
+}
+
+/* Link that moves the player somewhere */
+.way {
+  color: blue;
 }
