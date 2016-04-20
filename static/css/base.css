@@ -157,12 +157,11 @@ body {
 }
 
 
-#header a:hover {
+#header a:hover,
+#eventpane a:hover {
   text-decoration: underline;
 }
-#localepane a:link,
-#eventpane a:hover
-{
+#localepane_locale a:link {
   text-decoration: none;
   background: -webkit-linear-gradient(#fffff8, #fffff8), -webkit-linear-gradient(#fffff8, #fffff8), -webkit-linear-gradient(#A30, #A30);
   background: linear-gradient(#fffff8, #fffff8), linear-gradient(#fffff8, #fffff8), linear-gradient(#A30, #A30);
